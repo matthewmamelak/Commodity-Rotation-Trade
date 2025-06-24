@@ -52,6 +52,25 @@ For each month (after the first year of data, to allow for moving averages):
 - Plots cumulative returns for the top 3 moving average pairs, alongside the optimal one, for comparison.
 - Prints performance metrics to the console.
 
+## Buying, Selling, and Money Simulation
+
+This strategy simulates a real investment process:
+
+- **Buying and Selling:**
+  - Each month, the strategy "buys" the top N ETFs that pass all filters, allocating the portfolio equally among them.
+  - If an ETF held last month is no longer in the top N, the strategy "sells" it and reallocates to the new selection.
+  - If no ETFs pass the filters, or if drawdown control is triggered, the strategy "sells" all ETFs and moves the portfolio to cash.
+  - Transaction costs are subtracted for each ETF bought or sold, mimicking real-world trading costs.
+
+- **Money Simulation:**
+  - The strategy starts with a hypothetical portfolio (e.g., $1 or 100%).
+  - All returns, allocations, and trades are tracked as if real money were being invested.
+  - The cumulative return shows how the portfolio would have grown over time, including the effects of buying, selling, and transaction costs.
+  - When the strategy is "in cash," it earns a fixed interest rate (e.g., 3% annualized).
+
+- **No Real Money:**
+  - The code does not execute real trades or move actual money. It is a backtest/simulation for research and analysis purposes.
+
 ## Parameters
 You can adjust the following parameters at the top of `main.py`:
 - `TOP_N`: Number of ETFs to select each month
@@ -61,10 +80,5 @@ You can adjust the following parameters at the top of `main.py`:
 - `short_ma_options` and `long_ma_options`: Ranges of moving average windows to grid search
 
 
-## Notes
-- The strategy logic and calibration can be easily modified to select a different number of ETFs, use different filters, or adjust risk controls.
-- Make sure your Excel file is formatted correctly (dates and prices).
 
 ---
-
-*This project is for educational purposes and does not constitute financial advice.* 
