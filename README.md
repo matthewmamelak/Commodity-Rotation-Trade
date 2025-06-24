@@ -1,6 +1,6 @@
 # Seasonal Commodity Rotation Strategy
 
-This project implements a **Seasonal Commodity Rotation Strategy** using Python and pandas. The strategy rotates among different commodity ETFs based on seasonal patterns, momentum, trend filters, and risk controls to maximize returns and manage risk. The model automatically calibrates its moving average parameters for optimal performance.
+This project implements a **Seasonal Commodity Rotation Strategy** using Python. The strategy rotates among different commodity ETFs based on seasonal patterns, momentum, trend filters, and risk controls.
 
 ## Overview
 
@@ -68,8 +68,6 @@ This strategy simulates a real investment process:
   - The cumulative return shows how the portfolio would have grown over time, including the effects of buying, selling, and transaction costs.
   - When the strategy is "in cash," it earns a fixed interest rate (e.g., 3% annualized).
 
-- **No Real Money:**
-  - The code does not execute real trades or move actual money. It is a backtest/simulation for research and analysis purposes.
 
 ## Parameters
 You can adjust the following parameters at the top of `main.py`:
