@@ -1,10 +1,10 @@
 # Seasonal Commodity Rotation Strategy
 
-This project implements a **Seasonal Commodity Rotation Strategy** using Python and pandas. The strategy rotates among different commodity ETFs based on seasonal patterns, momentum, trend filters, and risk controls to maximize returns and manage risk.
+This project implements a **Seasonal Commodity Rotation Strategy** using Python and pandas. The strategy rotates among different commodity ETFs based on seasonal patterns, momentum, trend filters, and risk controls to maximize returns and manage risk. The model automatically calibrates its moving average parameters for optimal performance.
 
 ## Overview
 
-The strategy analyzes historical price data for multiple commodity ETFs (provided in `seasonal_cmdt_rotation.xlsx`) and applies a set of rules to select the most promising ETFs each month. The portfolio is dynamically allocated based on these rules, with built-in risk management and transaction cost simulation.
+The strategy analyzes historical price data for multiple commodity ETFs (provided in `seasonal_cmdt_rotation.xlsx`) and applies a set of rules to select the most promising ETFs each month. The portfolio is dynamically allocated based on these rules, with built-in risk management, transaction cost simulation, and automatic parameter calibration.
 
 ## How the Strategy Works
 
@@ -15,26 +15,42 @@ The strategy analyzes historical price data for multiple commodity ETFs (provide
 ### 2. Indicator Calculation
 - **Monthly Returns:** Calculates monthly percentage returns for each ETF.
 - **Seasonal Matrix:** Computes the average return for each ETF in each calendar month (e.g., average January return).
-- **6-Month Moving Average:** Used as a trend filter on monthly data.
-- **200-Day Moving Average:** Calculated on daily data, then resampled to monthly for trend filtering.
+- **Moving Averages:**
+  - The strategy tests a grid of short-term (3–12 months) and long-term (100–300 days) moving average windows for trend filtering.
+  - For each window pair, it calculates the 6-month (or other short-term) and 200-day (or other long-term) moving averages for each ETF.
 
-### 3. Strategy Logic (Monthly Loop)
-For each month (after the first year of data):
+### 3. Automatic Parameter Calibration
+- The model performs a grid search over all combinations of short and long moving average windows.
+- For each combination, it runs the full backtest and computes the Sharpe ratio.
+- The window pair with the highest Sharpe ratio is selected as optimal.
+- The strategy is then rerun using these optimal moving average parameters for all further analysis and plots.
+
+### 4. Monthly Portfolio Selection Logic
+For each month (after the first year of data, to allow for moving averages):
 - **Seasonality:** Looks ahead to the next month's average return for each ETF.
 - **Momentum Filter:** Only ETFs with a positive return in the previous month are eligible.
-- **Trend Filters:** Only ETFs trading above both their 6-month and 200-day moving averages are eligible.
+- **Trend Filters:** Only ETFs trading above both their optimal short-term and long-term moving averages are eligible.
 - **Selection:** Among eligible ETFs, selects the top N (default: 3) with the highest expected seasonality for the next month, and allocates equally among them.
 - **Drawdown Control:** If the strategy's drawdown exceeds a set threshold (default: -10%), the portfolio moves to cash (earning a 3% annualized rate) for the next month.
 - **Cash Allocation:** If no ETF passes the filters, or if drawdown control is triggered, the portfolio is allocated to cash for that month.
 - **Transaction Cost:** Each time the portfolio changes, a transaction cost (default: 0.1% per ETF traded) is subtracted from returns.
 
-### 4. Performance Evaluation
-- Calculates the cumulative return of the strategy.
+### 5. Performance Evaluation
+- Calculates the cumulative return of the strategy over time.
 - Computes key performance metrics:
   - **CAGR** (Compound Annual Growth Rate)
   - **Annualized Volatility**
   - **Sharpe Ratio**
   - **Maximum Drawdown**
+
+### 6. Visualization
+- Plots the cumulative return of the strategy over time using the optimal moving average calibration.
+- Shows which ETFs are selected each month.
+- Plots the drawdown (underwater plot) of the strategy.
+- Compares the strategy's cumulative return to an equal-weighted benchmark of all ETFs.
+- Displays a heatmap of Sharpe ratios for all tested moving average window pairs.
+- Plots cumulative returns for the top 3 moving average pairs, alongside the optimal one, for comparison.
+- Prints performance metrics to the console.
 
 ## Parameters
 You can adjust the following parameters at the top of `main.py`:
@@ -42,17 +58,11 @@ You can adjust the following parameters at the top of `main.py`:
 - `DRAWDOWN_THRESHOLD`: Drawdown level to trigger cash allocation
 - `TRANSACTION_COST`: Cost per ETF traded
 - `CASH_RATE`: Annualized cash return when in cash
+- `short_ma_options` and `long_ma_options`: Ranges of moving average windows to grid search
 
-## Usage
-1. Place your ETF price data in `seasonal_cmdt_rotation.xlsx` (one sheet per ETF, with columns: Date, Price).
-2. Run the script:
-   ```bash
-   python main.py
-   ```
-3. View the performance plots and metrics in the output.
 
 ## Notes
-- The strategy logic can be easily modified to select a different number of ETFs, use different filters, or adjust risk controls.
+- The strategy logic and calibration can be easily modified to select a different number of ETFs, use different filters, or adjust risk controls.
 - Make sure your Excel file is formatted correctly (dates and prices).
 
 ---
