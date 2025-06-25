@@ -42,18 +42,18 @@ daily_ma200 = combined_daily.rolling(window=200).mean()
 monthly_ma200 = daily_ma200.resample('M').last()
 
 # === STRATEGY PARAMETERS ===
-TOP_N = 3  # Number of ETFs to select each month
-DRAWDOWN_THRESHOLD = -0.10  # Max drawdown before going to cash
+TOP_N_options = [1, 2, 3, 4, 5]  # Number of ETFs to select each month (grid search)
+DRAWDOWN_THRESHOLD_options = [-0.05, -0.10, -0.15, -0.20]  # Max drawdown before going to cash (grid search)
 TRANSACTION_COST = 0.001  # 0.1% per ETF traded
 CASH_RATE = 0.03  # 3% annualized
 
-# === GRID SEARCH FOR MOVING AVERAGE WINDOWS ===
+# === GRID SEARCH FOR MOVING AVERAGE WINDOWS, TOP_N, DRAWDOWN_THRESHOLD ===
 short_ma_options = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12]  # months
 long_ma_options = [100, 150, 200, 250, 300]  # days
 results = {}
 top_cumrets = {}
 
-for short_ma, long_ma in itertools.product(short_ma_options, long_ma_options):
+for short_ma, long_ma, TOP_N, DRAWDOWN_THRESHOLD in itertools.product(short_ma_options, long_ma_options, TOP_N_options, DRAWDOWN_THRESHOLD_options):
     # Recompute moving averages
     ma_short = combined_prices.rolling(window=short_ma).mean()
     daily_ma_long = combined_daily.rolling(window=long_ma).mean()
@@ -119,18 +119,20 @@ for short_ma, long_ma in itertools.product(short_ma_options, long_ma_options):
         returns_series = pd.Series(portfolio_returns, index=dates, name='Strategy Return')
         volatility = returns_series.std() * np.sqrt(12)
         sharpe = (returns_series.mean() * 12) / volatility if volatility > 0 else 0
-        results[(short_ma, long_ma)] = sharpe
-        top_cumrets[(short_ma, long_ma)] = pd.Series(cumulative_returns_list, index=dates)
+        results[(short_ma, long_ma, TOP_N, DRAWDOWN_THRESHOLD)] = sharpe
+        top_cumrets[(short_ma, long_ma, TOP_N, DRAWDOWN_THRESHOLD)] = pd.Series(cumulative_returns_list, index=dates)
 
 # Find best Sharpe
-best_pair = max(results, key=results.get)
-best_short, best_long = best_pair
-print(f"\nOptimal MA windows: {best_short} months (short), {best_long} days (long) | Sharpe: {results[best_pair]:.3f}")
+best_params = max(results, key=results.get)
+best_short, best_long, best_TOP_N, best_DD = best_params
+print(f"\nOptimal parameters: {best_short} months (short MA), {best_long} days (long MA), {best_TOP_N} ETFs, Drawdown {best_DD:.2%} | Sharpe: {results[best_params]:.3f}")
 
-# === RERUN STRATEGY WITH OPTIMAL WINDOWS ===
+# === RERUN STRATEGY WITH OPTIMAL PARAMETERS ===
 ma6 = combined_prices.rolling(window=best_short).mean()
 daily_ma200 = combined_daily.rolling(window=best_long).mean()
 monthly_ma200 = daily_ma200.resample('M').last()
+TOP_N = best_TOP_N
+DRAWDOWN_THRESHOLD = best_DD
 
 # === STEP 3: Strategy Logic (Enhanced) ===
 portfolio_returns = []
@@ -234,6 +236,7 @@ plt.ylabel('Cumulative Return')
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
+plt.savefig('strategy_cumulative_return.png')
 plt.show()
 
 # === Additional Visuals ===
@@ -248,6 +251,7 @@ plt.ylabel('Selected ETF')
 plt.yticks(rotation=45)
 plt.grid(True, axis='y', linestyle=':')
 plt.tight_layout()
+plt.savefig('etf_selected_each_month.png')
 plt.show()
 
 # 2. Underwater (Drawdown) Plot
@@ -259,6 +263,7 @@ plt.title('Strategy Drawdown (Underwater Plot)')
 plt.xlabel('Date')
 plt.ylabel('Drawdown')
 plt.tight_layout()
+plt.savefig('strategy_drawdown.png')
 plt.show()
 
 # 3. Comparison to Equal-Weighted Benchmark
@@ -273,33 +278,94 @@ plt.ylabel('Cumulative Return')
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
+plt.savefig('strategy_vs_benchmark.png')
 plt.show()
 
-# === PLOT HEATMAP OF SHARPE RATIOS ===
-sharpe_matrix = np.zeros((len(short_ma_options), len(long_ma_options)))
-for i, s in enumerate(short_ma_options):
-    for j, l in enumerate(long_ma_options):
-        sharpe_matrix[i, j] = results.get((s, l), np.nan)
+# === PLOT HEATMAPS FOR TOP_N AND DRAWDOWN_THRESHOLD ===
+# Heatmap: Sharpe vs TOP_N and Drawdown (best MA windows)
+import matplotlib.ticker as mticker
+sharpe_matrix_nd = np.full((len(TOP_N_options), len(DRAWDOWN_THRESHOLD_options)), np.nan)
+for i, n in enumerate(TOP_N_options):
+    for j, dd in enumerate(DRAWDOWN_THRESHOLD_options):
+        key = (best_short, best_long, n, dd)
+        if key in results:
+            sharpe_matrix_nd[i, j] = results[key]
 plt.figure(figsize=(8, 6))
-sns.heatmap(sharpe_matrix, annot=True, fmt=".2f", xticklabels=long_ma_options, yticklabels=short_ma_options, cmap="YlGnBu")
-plt.title("Sharpe Ratio Heatmap (Short MA months vs Long MA days)")
-plt.xlabel("Long MA (days)")
-plt.ylabel("Short MA (months)")
+sns.heatmap(sharpe_matrix_nd, annot=True, fmt=".2f", xticklabels=[f"{x:.0%}" for x in DRAWDOWN_THRESHOLD_options], yticklabels=TOP_N_options, cmap="YlGnBu")
+plt.title("Sharpe Ratio Heatmap (TOP_N vs Drawdown Threshold)\n@ Best MA Windows")
+plt.xlabel("Drawdown Threshold")
+plt.ylabel("Number of ETFs (TOP_N)")
 plt.tight_layout()
+plt.savefig('sharpe_heatmap_topn_drawdown.png')
 plt.show()
 
-# === PLOT CUMULATIVE RETURNS FOR TOP 3 PAIRS ===
-top3 = sorted(results, key=results.get, reverse=True)[:3]
-plt.figure(figsize=(10, 5))
-for pair in top3:
-    plt.plot(top_cumrets[pair], label=f"{pair[0]}m/{pair[1]}d (Sharpe={results[pair]:.2f})")
-plt.plot(cumulative_return, label="Optimal (Selected)", linewidth=2, color="black")
-plt.title("Cumulative Returns for Top 3 MA Pairs")
-plt.xlabel("Date")
-plt.ylabel("Cumulative Return")
-plt.legend()
+# === ROLLING PERFORMANCE METRICS ===
+window = 12  # 12 months
+rolling_sharpe = returns_series.rolling(window).mean() / returns_series.rolling(window).std() * np.sqrt(12)
+rolling_vol = returns_series.rolling(window).std() * np.sqrt(12)
+rolling_ret = returns_series.rolling(window).mean() * 12
+
+plt.figure(figsize=(10, 3))
+plt.plot(rolling_sharpe, label='Rolling 12M Sharpe')
+plt.title('Rolling 12-Month Sharpe Ratio')
+plt.xlabel('Date')
+plt.ylabel('Sharpe Ratio')
 plt.grid(True)
+plt.legend()
 plt.tight_layout()
+plt.savefig('rolling_sharpe.png')
+plt.show()
+
+plt.figure(figsize=(10, 3))
+plt.plot(rolling_vol, label='Rolling 12M Volatility')
+plt.title('Rolling 12-Month Volatility')
+plt.xlabel('Date')
+plt.ylabel('Volatility (Annualized)')
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.savefig('rolling_volatility.png')
+plt.show()
+
+plt.figure(figsize=(10, 3))
+plt.plot(rolling_ret, label='Rolling 12M Return')
+plt.title('Rolling 12-Month Return (Annualized)')
+plt.xlabel('Date')
+plt.ylabel('Return (Annualized)')
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.savefig('rolling_return.png')
+plt.show()
+
+# === DISTRIBUTIONAL ANALYSIS ===
+plt.figure(figsize=(8, 4))
+returns_series.hist(bins=30, alpha=0.7)
+plt.title('Histogram of Monthly Returns (Strategy)')
+plt.xlabel('Monthly Return')
+plt.ylabel('Frequency')
+plt.tight_layout()
+plt.savefig('histogram_returns.png')
+plt.show()
+
+# === ETF SELECTION FREQUENCY ===
+selection_counts = (weights_df > 0).sum()
+plt.figure(figsize=(8, 4))
+selection_counts.sort_values().plot(kind='bar')
+plt.title('ETF Selection Frequency')
+plt.ylabel('Number of Months Selected')
+plt.xlabel('ETF')
+plt.tight_layout()
+plt.savefig('etf_selection_frequency.png')
+plt.show()
+
+# === CORRELATION ANALYSIS ===
+plt.figure(figsize=(8, 6))
+corr = combined_prices.pct_change().corr()
+sns.heatmap(corr, annot=True, cmap='coolwarm', fmt='.2f')
+plt.title('Correlation Matrix of ETF Monthly Returns')
+plt.tight_layout()
+plt.savefig('etf_correlation_matrix.png')
 plt.show()
 
 # Print stats
